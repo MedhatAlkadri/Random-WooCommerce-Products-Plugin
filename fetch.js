@@ -1,0 +1,1 @@
+wp.apiFetch.use( wp.apiFetch.createNonceMiddleware( randomProductsBlock.nonce ) );
