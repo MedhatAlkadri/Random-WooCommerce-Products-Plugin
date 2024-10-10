@@ -10,8 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'WC_CONSUMER_KEY', 'ck_3b19409a13312704121a7adc830e471a50991bee' );
-define( 'WC_CONSUMER_SECRET', 'cs_435e86d4ae7d205fb67dea71dcde6f85de28d0b1' );
+// Include the configuration file
+if ( file_exists( plugin_dir_path( __FILE__ ) . 'config.php' ) ) {
+    include( plugin_dir_path( __FILE__ ) . 'config.php' );
+} else {
+    exit( 'Configuration file not found.' );
+}
 
 function random_products_block_register_block() {
     wp_register_script(
@@ -21,16 +25,8 @@ function random_products_block_register_block() {
         filemtime( plugin_dir_path( __FILE__ ) . 'block.js' )
     );
 
-    wp_register_style(
-        'random-products-block-editor-style',
-        plugins_url( 'editor.css', __FILE__ ),
-        array( 'wp-edit-blocks' ),
-        filemtime( plugin_dir_path( __FILE__ ) . 'editor.css' )
-    );
-
     register_block_type( 'random-products/random-products-block', array(
         'editor_script' => 'random-products-block-editor-script',
-        'editor_style'  => 'random-products-block-editor-style',
     ) );
 }
 add_action( 'init', 'random_products_block_register_block' );
@@ -61,12 +57,15 @@ function random_products_block_register_rest_route() {
 add_action( 'rest_api_init', 'random_products_block_register_rest_route' );
 
 function random_products_block_get_products() {
-    $response = wp_remote_get( add_query_arg( array(
-        'consumer_key'    => WC_CONSUMER_KEY,
-        'consumer_secret' => WC_CONSUMER_SECRET,
-        'per_page'        => 3,
-        'orderby'         => 'rand',
-    ), 'http://localhost:10004/wp-json/wc/v3/products' ) );
+    $url = 'http://localhost:10004/wp-json/wc/v3/products';
+    $args = array(
+        'method' => 'GET',
+        'headers' => array(
+            'Authorization' => 'OAuth oauth_consumer_key="' . WC_CONSUMER_KEY . '", oauth_signature_method="HMAC-SHA1", oauth_timestamp="' . time() . '", oauth_nonce="' . wp_generate_password( 12, false ) . '", oauth_version="1.0", oauth_signature="' . base64_encode( hash_hmac( 'sha1', 'GET&' . rawurlencode( $url ) . '&' . rawurlencode( 'oauth_consumer_key=' . WC_CONSUMER_KEY . '&oauth_nonce=' . wp_generate_password( 12, false ) . '&oauth_signature_method=HMAC-SHA1&oauth_timestamp=' . time() . '&oauth_version=1.0' ), WC_CONSUMER_SECRET . '&', true ) ) . '"'
+        )
+    );
+
+    $response = wp_remote_get( $url, $args );
 
     if ( is_wp_error( $response ) ) {
         return new WP_Error( 'rest_api_error', 'Unable to fetch products', array( 'status' => 500 ) );

@@ -1,40 +1,45 @@
 const { registerBlockType } = wp.blocks;
-const { useState, useEffect } = wp.element;
+const { useState, useEffect, createElement } = wp.element;
 const { Spinner } = wp.components;
 const apiFetch = wp.apiFetch;
 
 registerBlockType('random-products/random-products-block', {
     title: 'Random Products Block',
     icon: 'cart',
-    category: 'widgets',
+    category: 'common',
     edit: () => {
         const [products, setProducts] = useState([]);
         const [loading, setLoading] = useState(true);
 
         useEffect(() => {
             apiFetch({
-                path: '/wc/v3/products?per_page=3&orderby=rand',
+                path: randomProductsBlock.rest_url,
                 headers: { 'X-WP-Nonce': randomProductsBlock.nonce }
             }).then((products) => {
                 setProducts(products);
+                setLoading(false);
+            }).catch((error) => {
+                console.error('Error fetching products:', error);
                 setLoading(false);
             });
         }, []);
 
         if (loading) {
-            return <Spinner />;
+            return createElement(Spinner, null);
         }
 
-        return (
-            <div className="random-products-block">
-                {products.map((product) => (
-                    <div key={product.id} className="product">
-                        <img src={product.images[0].src} alt={product.name} />
-                        <h2>{product.name}</h2>
-                        <p dangerouslySetInnerHTML={{ __html: product.price_html }} />
-                    </div>
-                ))}
-            </div>
+        return createElement(
+            'div',
+            { className: 'random-products-block' },
+            products.map((product) =>
+                createElement(
+                    'div',
+                    { key: product.id, className: 'product' },
+                    createElement('img', { src: product.images[0].src, alt: product.name }),
+                    createElement('h2', null, product.name),
+                    createElement('p', { dangerouslySetInnerHTML: { __html: product.price_html } })
+                )
+            )
         );
     },
     save: () => {
