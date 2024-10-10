@@ -13,7 +13,7 @@ if (typeof wp !== 'undefined' && typeof wp.blocks !== 'undefined' && typeof wp.b
         registerBlockType('random-products/random-products-block', {
             title: 'Random Products Block',
             icon: 'cart',
-            category: 'common',
+            category: 'widgets', // Register under the 'widgets' category
             edit: () => {
                 const [products, setProducts] = useState([]);
                 const [loading, setLoading] = useState(true);

@@ -34,7 +34,7 @@ function random_products_block_register_block() {
 
     register_block_type( 'random-products/random-products-block', array(
         'editor_script' => 'random-products-block-editor-script',
-        'style' => 'random-products-block-style',
+        'style'         => 'random-products-block-style',
         'render_callback' => 'random_products_block_render_callback',
     ) );
 }
@@ -49,7 +49,8 @@ function random_products_block_enqueue_assets() {
         true
     );
 
-    $url = 'http://localhost:10004/wp-json/wc/v3/products';
+    $base_url = get_site_url();
+    $url = $base_url . '/wp-json/wc/v3/products';
     $params = array(
         'oauth_consumer_key'     => WC_CONSUMER_KEY,
         'oauth_nonce'            => wp_generate_password( 12, false ),
@@ -57,6 +58,7 @@ function random_products_block_enqueue_assets() {
         'oauth_timestamp'        => time(),
         'oauth_version'          => '1.0',
         'per_page'               => 10, // Fetch more products to shuffle
+        'fields'                 => 'id,name,images,price_html', // Fetch only necessary fields
     );
 
     $base_info = build_base_string( $url, 'GET', $params );
@@ -74,44 +76,54 @@ function random_products_block_enqueue_assets() {
 add_action( 'enqueue_block_assets', 'random_products_block_enqueue_assets' );
 
 function random_products_block_render_callback() {
-    $url = 'http://localhost:10004/wp-json/wc/v3/products';
-    $params = array(
-        'oauth_consumer_key'     => WC_CONSUMER_KEY,
-        'oauth_nonce'            => wp_generate_password( 12, false ),
-        'oauth_signature_method' => 'HMAC-SHA1',
-        'oauth_timestamp'        => time(),
-        'oauth_version'          => '1.0',
-        'per_page'               => 10, // Fetch more products to shuffle
-    );
+    $transient_key = 'random_products_block';
+    $products = get_transient( $transient_key );
 
-    $base_info = build_base_string( $url, 'GET', $params );
-    $composite_key = rawurlencode( WC_CONSUMER_SECRET ) . '&';
-    $params['oauth_signature'] = base64_encode( hash_hmac( 'sha1', $base_info, $composite_key, true ) );
+    if ( false === $products ) {
+        $base_url = get_site_url();
+        $url = $base_url . '/wp-json/wc/v3/products';
+        $params = array(
+            'oauth_consumer_key'     => WC_CONSUMER_KEY,
+            'oauth_nonce'            => wp_generate_password( 12, false ),
+            'oauth_signature_method' => 'HMAC-SHA1',
+            'oauth_timestamp'        => time(),
+            'oauth_version'          => '1.0',
+            'per_page'               => 10, // Fetch more products to shuffle
+            'fields'                 => 'id,name,images,price_html', // Fetch only necessary fields
+        );
 
-    $query_string = http_build_query( $params );
-    $full_url = $url . '?' . $query_string;
+        $base_info = build_base_string( $url, 'GET', $params );
+        $composite_key = rawurlencode( WC_CONSUMER_SECRET ) . '&';
+        $params['oauth_signature'] = base64_encode( hash_hmac( 'sha1', $base_info, $composite_key, true ) );
 
-    // Debugging: Output the full URL
-    error_log( 'Full URL: ' . $full_url );
+        $query_string = http_build_query( $params );
+        $full_url = $url . '?' . $query_string;
 
-    $response = wp_remote_get( $full_url, array( 'timeout' => 25 ) ); // Increase timeout to 25 seconds
+        // Debugging: Output the full URL
+        error_log( 'Full URL: ' . $full_url );
 
-    if ( is_wp_error( $response ) ) {
-        error_log( 'Error fetching products: ' . $response->get_error_message() );
-        return '<p>Unable to fetch products</p>';
-    }
+        $response = wp_remote_get( $full_url, array( 'timeout' => 25 ) ); // Increase timeout to 25 seconds
 
-    $response_code = wp_remote_retrieve_response_code( $response );
-    if ( $response_code !== 200 ) {
-        error_log( 'Unexpected response code: ' . $response_code );
-        return '<p>Unable to fetch products</p>';
-    }
+        if ( is_wp_error( $response ) ) {
+            error_log( 'Error fetching products: ' . $response->get_error_message() );
+            return '<p>Unable to fetch products</p>';
+        }
 
-    $products = json_decode( wp_remote_retrieve_body( $response ), true );
+        $response_code = wp_remote_retrieve_response_code( $response );
+        if ( $response_code !== 200 ) {
+            error_log( 'Unexpected response code: ' . $response_code );
+            return '<p>Unable to fetch products</p>';
+        }
 
-    if ( ! is_array( $products ) ) {
-        error_log( 'Unexpected response format: ' . wp_remote_retrieve_body( $response ) );
-        return '<p>Unexpected response format</p>';
+        $products = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( ! is_array( $products ) ) {
+            error_log( 'Unexpected response format: ' . wp_remote_retrieve_body( $response ) );
+            return '<p>Unexpected response format</p>';
+        }
+
+        // Cache the products for 1 hour
+        set_transient( $transient_key, $products, HOUR_IN_SECONDS );
     }
 
     // Shuffle products to get random ones
