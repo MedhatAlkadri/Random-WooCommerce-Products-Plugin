@@ -10,13 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Include the configuration file
-if ( file_exists( plugin_dir_path( __FILE__ ) . 'config.php' ) ) {
-    include( plugin_dir_path( __FILE__ ) . 'config.php' );
-} else {
-    exit( 'Configuration file not found.' );
-}
-
 function random_products_block_register_block() {
     wp_register_script(
         'random-products-block-editor-script',
@@ -51,8 +44,15 @@ function random_products_block_enqueue_assets() {
 
     $base_url = get_site_url();
     $url = $base_url . '/wp-json/wc/v3/products';
+    $consumer_key = get_option( 'random_products_block_consumer_key' );
+    $consumer_secret = get_option( 'random_products_block_consumer_secret' );
+
+    if ( empty( $consumer_key ) || empty( $consumer_secret ) ) {
+        return;
+    }
+
     $params = array(
-        'oauth_consumer_key'     => WC_CONSUMER_KEY,
+        'oauth_consumer_key'     => $consumer_key,
         'oauth_nonce'            => wp_generate_password( 12, false ),
         'oauth_signature_method' => 'HMAC-SHA1',
         'oauth_timestamp'        => time(),
@@ -62,7 +62,7 @@ function random_products_block_enqueue_assets() {
     );
 
     $base_info = build_base_string( $url, 'GET', $params );
-    $composite_key = rawurlencode( WC_CONSUMER_SECRET ) . '&';
+    $composite_key = rawurlencode( $consumer_secret ) . '&';
     $params['oauth_signature'] = base64_encode( hash_hmac( 'sha1', $base_info, $composite_key, true ) );
 
     $query_string = http_build_query( $params );
@@ -76,14 +76,22 @@ function random_products_block_enqueue_assets() {
 add_action( 'enqueue_block_assets', 'random_products_block_enqueue_assets' );
 
 function random_products_block_render_callback() {
+    $consumer_key = get_option( 'random_products_block_consumer_key' );
+    $consumer_secret = get_option( 'random_products_block_consumer_secret' );
+
+    if ( empty( $consumer_key ) || empty( $consumer_secret ) ) {
+        return '<p>Please enter your WooCommerce API credentials in the <a href="' . esc_url( admin_url( 'admin.php?page=random-products-block' ) ) . '">plugin settings</a>.</p>';
+    }
+
     $transient_key = 'random_products_block';
     $products = get_transient( $transient_key );
 
     if ( false === $products ) {
         $base_url = get_site_url();
         $url = $base_url . '/wp-json/wc/v3/products';
+
         $params = array(
-            'oauth_consumer_key'     => WC_CONSUMER_KEY,
+            'oauth_consumer_key'     => $consumer_key,
             'oauth_nonce'            => wp_generate_password( 12, false ),
             'oauth_signature_method' => 'HMAC-SHA1',
             'oauth_timestamp'        => time(),
@@ -93,7 +101,7 @@ function random_products_block_render_callback() {
         );
 
         $base_info = build_base_string( $url, 'GET', $params );
-        $composite_key = rawurlencode( WC_CONSUMER_SECRET ) . '&';
+        $composite_key = rawurlencode( $consumer_secret ) . '&';
         $params['oauth_signature'] = base64_encode( hash_hmac( 'sha1', $base_info, $composite_key, true ) );
 
         $query_string = http_build_query( $params );
@@ -152,4 +160,78 @@ function build_base_string( $baseURI, $method, $params ) {
         $r[] = "$key=" . rawurlencode( $value );
     }
     return $method . "&" . rawurlencode( $baseURI ) . '&' . rawurlencode( implode( '&', $r ) );
+}
+
+// Add settings page
+function random_products_block_add_admin_menu() {
+    add_submenu_page(
+        'woocommerce',
+        'Random Products Block Settings',
+        'Random Products Block',
+        'manage_options',
+        'random-products-block',
+        'random_products_block_options_page'
+    );
+}
+add_action( 'admin_menu', 'random_products_block_add_admin_menu' );
+
+// Register settings
+function random_products_block_settings_init() {
+    register_setting( 'randomProductsBlock', 'random_products_block_consumer_key' );
+    register_setting( 'randomProductsBlock', 'random_products_block_consumer_secret' );
+
+    add_settings_section(
+        'random_products_block_section',
+        __( 'WooCommerce API Settings', 'random-products-block' ),
+        'random_products_block_settings_section_callback',
+        'randomProductsBlock'
+    );
+
+    add_settings_field(
+        'random_products_block_consumer_key',
+        __( 'Consumer Key', 'random-products-block' ),
+        'random_products_block_consumer_key_render',
+        'randomProductsBlock',
+        'random_products_block_section'
+    );
+
+    add_settings_field(
+        'random_products_block_consumer_secret',
+        __( 'Consumer Secret', 'random-products-block' ),
+        'random_products_block_consumer_secret_render',
+        'randomProductsBlock',
+        'random_products_block_section'
+    );
+}
+add_action( 'admin_init', 'random_products_block_settings_init' );
+
+function random_products_block_consumer_key_render() {
+    $consumer_key = get_option( 'random_products_block_consumer_key' );
+    ?>
+    <input type='text' name='random_products_block_consumer_key' value='<?php echo esc_attr( $consumer_key ); ?>'>
+    <?php
+}
+
+function random_products_block_consumer_secret_render() {
+    $consumer_secret = get_option( 'random_products_block_consumer_secret' );
+    ?>
+    <input type='text' name='random_products_block_consumer_secret' value='<?php echo esc_attr( $consumer_secret ); ?>'>
+    <?php
+}
+
+function random_products_block_settings_section_callback() {
+    echo __( 'Enter your WooCommerce API credentials here.', 'random-products-block' );
+}
+
+function random_products_block_options_page() {
+    ?>
+    <form action='options.php' method='post'>
+        <h2>Random Products Block Settings</h2>
+        <?php
+        settings_fields( 'randomProductsBlock' );
+        do_settings_sections( 'randomProductsBlock' );
+        submit_button();
+        ?>
+    </form>
+    <?php
 }
