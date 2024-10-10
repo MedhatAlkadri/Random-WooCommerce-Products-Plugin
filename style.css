@@ -1,0 +1,21 @@
+
+
+.random-products-block .product:hover {
+    transform: scale(1.05);
+}
+
+.random-products-block {
+  display: grid;
+  grid-template-columns: repeat(3,250px);
+  gap: 20px;
+}
+
+.random-products-block .product img{
+  max-width: 300px;
+}
+.random-products-block .product h2{
+  font-size: 25px;
+}
+.random-products-block .product{
+  text-align: center;
+}

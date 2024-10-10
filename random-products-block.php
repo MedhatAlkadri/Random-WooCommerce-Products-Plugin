@@ -3,7 +3,7 @@
  * Plugin Name: Random Products Block
  * Description: A Gutenberg block to display 3 random WooCommerce products.
  * Version: 1.0
- * Author: Your Name
+ * Author: Medhat Alkadri
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -25,8 +25,16 @@ function random_products_block_register_block() {
         filemtime( plugin_dir_path( __FILE__ ) . 'block.js' )
     );
 
+    wp_register_style(
+        'random-products-block-style',
+        plugins_url( 'style.css', __FILE__ ),
+        array(),
+        filemtime( plugin_dir_path( __FILE__ ) . 'style.css' )
+    );
+
     register_block_type( 'random-products/random-products-block', array(
         'editor_script' => 'random-products-block-editor-script',
+        'style' => 'random-products-block-style',
         'render_callback' => 'random_products_block_render_callback',
     ) );
 }
@@ -86,10 +94,16 @@ function random_products_block_render_callback() {
     // Debugging: Output the full URL
     error_log( 'Full URL: ' . $full_url );
 
-    $response = wp_remote_get( $full_url );
+    $response = wp_remote_get( $full_url, array( 'timeout' => 25 ) ); // Increase timeout to 25 seconds
 
     if ( is_wp_error( $response ) ) {
         error_log( 'Error fetching products: ' . $response->get_error_message() );
+        return '<p>Unable to fetch products</p>';
+    }
+
+    $response_code = wp_remote_retrieve_response_code( $response );
+    if ( $response_code !== 200 ) {
+        error_log( 'Unexpected response code: ' . $response_code );
         return '<p>Unable to fetch products</p>';
     }
 
