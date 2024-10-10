@@ -48,7 +48,7 @@ function random_products_block_enqueue_assets() {
         'oauth_signature_method' => 'HMAC-SHA1',
         'oauth_timestamp'        => time(),
         'oauth_version'          => '1.0',
-        'per_page'               => 3,
+        'per_page'               => 10, // Fetch more products to shuffle
     );
 
     $base_info = build_base_string( $url, 'GET', $params );
@@ -73,7 +73,7 @@ function random_products_block_render_callback() {
         'oauth_signature_method' => 'HMAC-SHA1',
         'oauth_timestamp'        => time(),
         'oauth_version'          => '1.0',
-        'per_page'               => 3,
+        'per_page'               => 10, // Fetch more products to shuffle
     );
 
     $base_info = build_base_string( $url, 'GET', $params );
@@ -83,17 +83,26 @@ function random_products_block_render_callback() {
     $query_string = http_build_query( $params );
     $full_url = $url . '?' . $query_string;
 
+    // Debugging: Output the full URL
+    error_log( 'Full URL: ' . $full_url );
+
     $response = wp_remote_get( $full_url );
 
     if ( is_wp_error( $response ) ) {
+        error_log( 'Error fetching products: ' . $response->get_error_message() );
         return '<p>Unable to fetch products</p>';
     }
 
     $products = json_decode( wp_remote_retrieve_body( $response ), true );
 
     if ( ! is_array( $products ) ) {
+        error_log( 'Unexpected response format: ' . wp_remote_retrieve_body( $response ) );
         return '<p>Unexpected response format</p>';
     }
+
+    // Shuffle products to get random ones
+    shuffle( $products );
+    $products = array_slice( $products, 0, 3 );
 
     ob_start();
     ?>
