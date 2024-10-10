@@ -1,7 +1,6 @@
 const { registerBlockType } = wp.blocks;
 const { useState, useEffect, createElement } = wp.element;
 const { Spinner } = wp.components;
-const apiFetch = wp.apiFetch;
 
 registerBlockType('random-products/random-products-block', {
     title: 'Random Products Block',
@@ -12,13 +11,19 @@ registerBlockType('random-products/random-products-block', {
         const [loading, setLoading] = useState(true);
 
         useEffect(() => {
-            apiFetch({
-                path: randomProductsBlock.rest_url,
+            fetch(randomProductsBlock.rest_url, {
                 headers: { 'X-WP-Nonce': randomProductsBlock.nonce }
-            }).then((products) => {
-                setProducts(products);
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setProducts(data);
+                } else {
+                    console.error('Unexpected response format:', data);
+                }
                 setLoading(false);
-            }).catch((error) => {
+            })
+            .catch(error => {
                 console.error('Error fetching products:', error);
                 setLoading(false);
             });
